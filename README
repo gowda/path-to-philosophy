@@ -1,0 +1,18 @@
+# path-to-philosophy
+
+tool to find out the path from any given wikipedia.org article to 'philosophy'
+article on wikipedia.org
+
+working is very simple - pick any article and find out the first article which
+is referred to outside of parenthesis and italics; goto the first article and
+repeat until 'philosophy' article is reached.
+
+## Usage
+
+very raw - no command-line execution or lein run support.
+
+## License
+
+Copyright (C) 2011 Basavanagowda Kanur
+
+Distributed under the Eclipse Public License, the same as Clojure.
