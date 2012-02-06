@@ -3,12 +3,12 @@
   (:import java.net.URL))
 
 
-(def *domain* "http://en.wikipedia.org")
+(def domain "http://en.wikipedia.org")
 
-(def *content-selector*
+(def content-selector
   [:div.mw-content-ltr :p])
 
-(def *unwanted-filter*
+(def unwanted-filter
   [[(html/but (html/attr? :style))]])
 
 (defn fetch-url [url]
@@ -51,11 +51,11 @@
 
 
 (defn paragraphs [url]
-  (html/select (fetch-url (str *domain* (str url)))
-               *content-selector*))
+  (html/select (fetch-url (str domain (str url)))
+               content-selector))
 
 (defn useful-paragraphs [url]
-  (html/select (paragraphs url) *unwanted-filter*))
+  (html/select (paragraphs url) unwanted-filter))
 
 (defn search-first-referred
   [url]
