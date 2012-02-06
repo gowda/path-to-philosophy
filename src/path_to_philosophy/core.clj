@@ -2,18 +2,13 @@
   (:require [net.cgrand.enlive-html :as html])
   (:import java.net.URL))
 
-
 (def domain "http://en.wikipedia.org")
 
 (def content-selector
-  [:div.mw-content-ltr :p])
-
-(def unwanted-filter
-  [[(html/but (html/attr? :style))]])
+  [:div.mw-content-ltr :> [:p (html/but (html/attr? :*))]])
 
 (defn fetch-url [url]
   (html/html-resource (URL. url)))
-
 
 (defn opens-paren? [element]
   (and (string? element)
@@ -28,43 +23,34 @@
   (and (map? node)
        (= (node :tag) :a)))
 
-(declare skip-paren-content)
+(defn swallow [lst begin-p end-p]
+  (declare trim)
+  (defn skip [n]
+    (cond (nil? (first n)) nil
+          (end-p (first n)) (trim (rest n))
+          :else (skip (rest n))))
 
-(defn trim-paren-content
-  [hlist]
-  (let [f (first hlist)
-        r (rest hlist)]
-    (cond (nil? f)          '()
+  (defn trim [n]
+    (cond (nil? (first n)) nil
+          (begin-p (first n)) (skip (rest n))
+          :else (concat (list (first n)) (trim (rest n)))))
 
-          (opens-paren? f)  (skip-paren-content r)
-
-          :else             (concat (list f) (trim-paren-content r)))))
+  (trim lst))
 
 
-(defn skip-paren-content
-  [hlist]
-  (let [f (first hlist)
-        r (rest hlist)]
-    (cond (nil? f)        '()
-          (ends-paren? f) (trim-paren-content r)
-          :else           (skip-paren-content r))))
-
+(defn swallow-parenthesized [node]
+  (swallow (:content node) opens-paren? ends-paren?))
 
 (defn paragraphs [url]
   (html/select (fetch-url (str domain (str url)))
                content-selector))
 
-(defn useful-paragraphs [url]
-  (html/select (paragraphs url) unwanted-filter))
+(defn find-first-reference [url]
+  (let [ps (paragraphs url)]
+    (if-let [references (filter hyperlink? (mapcat swallow-parenthesized ps))]
+      (first (html/attr-values (first references)
+                               :href)))))
 
-(defn search-first-referred
-  [url]
-  (first (html/attr-values (first (filter identity
-                                          (map (fn [node]
-                                                 (first (filter hyperlink?
-                                                                (trim-paren-content (node :content)))))
-                                               (paragraphs url))))
-                           :href)))
 
 (defn first-paragraph [url]
   (first (paragraphs)))
@@ -75,5 +61,5 @@
     (do (println url)
         'done)
     (do (println url)
-        (path-to-philosophy (search-first-referred url)))))
+        (path-to-philosophy (find-first-reference url)))))
 
