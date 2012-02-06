@@ -1,16 +1,15 @@
 (ns path-to-philosophy.core
-  (:require [net.cgrand.enlive-html :as html]
-            [clojure.contrib.str-utils2 :as str-utils])
-  (:import java.net.URL)
-  (:use [clojure.contrib.seq-utils :only [indexed]]
-        [clojure.contrib.str-utils :only [re-sub re-gsub]]))
+  (:require [net.cgrand.enlive-html :as html])
+  (:import java.net.URL))
 
 
 (def *domain* "http://en.wikipedia.org")
 
-(def *content-paragraph-selector*
-  [[:p (html/but (html/attr? :style))]])
+(def *content-selector*
+  [:div.mw-content-ltr :p])
 
+(def *unwanted-filter*
+  [[(html/but (html/attr? :style))]])
 
 (defn fetch-url [url]
   (html/html-resource (URL. url)))
@@ -53,7 +52,10 @@
 
 (defn paragraphs [url]
   (html/select (fetch-url (str *domain* (str url)))
-               *content-paragraph-selector*))
+               *content-selector*))
+
+(defn useful-paragraphs [url]
+  (html/select (paragraphs url) *unwanted-filter*))
 
 (defn search-first-referred
   [url]
