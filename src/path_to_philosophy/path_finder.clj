@@ -3,8 +3,7 @@
             [clojure.string :as string])
   (:import java.net.URL))
 
-(def domain "http://en.wikipedia.org")
-(def base-url (str domain "/wiki/"))
+(def ^:dynamic base-url)
 
 (def content-selector
   [:div.mw-content-ltr :> [:p (html/but (html/attr? :*))]])
@@ -60,8 +59,7 @@
 (defn first-paragraph [url]
   (first (paragraphs)))
 
-(defn to-philosophy
-  [article]
+(defn to-philosophy [article]
   (if (= article "Philosophy")
     (do (println article)
         'done)
