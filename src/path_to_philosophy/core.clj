@@ -10,8 +10,10 @@
         (cli args
              ["-b" "--base-url"
               "Base URL to append the article name to"
-              :default "http://en.wikipedia.org/wiki/"
-              :parse-fn #(string? %)]
+              :default "http://en.wikipedia.org/wiki/"]
+             ["-e" "--end-point"
+              "Article to be used as end-point"
+              :default "philosophy"]
              ["-h" "--help"
               "Show this help message"
               :flag true
@@ -25,5 +27,10 @@
 
 (defn -main [& args]
   (if-let [options (parse-cmdline args)]
-    (binding [path-finder/base-url (:base-url options)]
+    (binding [path-finder/base-url (:base-url options)
+              path-finder/end-point (:end-point options)]
+      (println "Starting with article" (:article options)
+               "at URL" (str (:base-url options) (:article options)))
+      (println "Will stop for article" (:end-point options)
+               "at URL" (str (:base-url options) (:end-point options)))
       (path-finder/to-philosophy (:article options)))))
