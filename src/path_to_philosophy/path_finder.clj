@@ -4,6 +4,7 @@
   (:import java.net.URL))
 
 (def ^:dynamic base-url)
+(def ^:dynamic end-point)
 
 (def content-selector
   [:div.mw-content-ltr :> [:p (html/but (html/attr? :*))]])
@@ -11,47 +12,43 @@
 (defn fetch-url [url]
   (html/html-resource (URL. url)))
 
-(defn opens-paren? [element]
-  (and (string? element)
-       (re-find #"\(" element)
-       (not (re-find #"\)" element))))
-
-(defn ends-paren? [element]
-  (and (string? element)
-       (re-find #"\)" element)))
-
-(defn hyperlink? [node]
+(defn contains-hyperlink? [node]
   (and (map? node)
-       (= (node :tag) :a)))
+       (html/select node [:a])))
 
-(defn swallow [lst begin-p end-p]
-  (declare trim)
-  (defn skip [n]
-    (cond (nil? (first n)) nil
-          (end-p (first n)) (trim (rest n))
-          :else (skip (rest n))))
+(defn strip-head [node]
+  (html/at node
+           [:head] (html/move [:head] nil)))
 
-  (defn trim [n]
-    (cond (nil? (first n)) nil
-          (begin-p (first n)) (skip (rest n))
-          :else (concat (list (first n)) (trim (rest n)))))
+(defn strip-script [node]
+  (html/at node
+           [:script] (html/move [:script] nil)))
 
-  (trim lst))
-
+(defn string->enlive-tree [string]
+  (with-open [s (-> (java.io.StringReader. string) java.io.BufferedReader.)]
+    (html/html-resource s)))
 
 (defn swallow-parenthesized [node]
-  (swallow (:content node) opens-paren? ends-paren?))
+  (let [stripped-node (-> node strip-head strip-script)]
+    (-> (string/replace (apply str (html/emit* stripped-node))
+                        #"\([^<)]*(<[^>]+>)+[^)]*\)" "")
+        string->enlive-tree)))
 
 (defn paragraphs [article]
-  (html/select (fetch-url (str base-url article))
+  (html/select (swallow-parenthesized (fetch-url (str base-url article)))
                content-selector))
+
+(defn hyperlinks [node]
+  (html/select node [:a]))
 
 (defn find-first-reference [article]
   (let [ps (paragraphs article)]
-    (if-let [references (filter hyperlink? (mapcat swallow-parenthesized ps))]
+    (if-let [references (reduce concat
+                                []
+                                (map hyperlinks
+                                     (filter contains-hyperlink? ps)))]
       (first (html/attr-values (first references)
                                :href)))))
-
 
 (defn find-first-referenced-article [article]
   (last (string/split (find-first-reference article) #"/")))
@@ -60,7 +57,8 @@
   (first (paragraphs)))
 
 (defn to-philosophy [article]
-  (if (= article "Philosophy")
+  (if (= (string/lower-case article)
+         (string/lower-case end-point))
     (do (println article)
         'done)
     (do (println article)
