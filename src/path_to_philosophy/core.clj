@@ -33,4 +33,7 @@
                "at URL" (str (:base-url options) (:article options)))
       (println "Will stop for article" (:end-point options)
                "at URL" (str (:base-url options) (:end-point options)))
-      (path-finder/to-philosophy (:article options)))))
+      (println (apply str
+                      (interpose ", "
+                                 (path-finder/to-philosophy
+                                  (:article options))))))))

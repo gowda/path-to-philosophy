@@ -3,64 +3,146 @@
             [clojure.string :as string])
   (:import java.net.URL))
 
-(def ^:dynamic base-url)
-(def ^:dynamic end-point)
+(def ^:dynamic base-url "http://en.wikipedia.org/wiki/")
+(def ^:dynamic end-point "Philosophy")
 
 (def content-selector
   [:div.mw-content-ltr :> [:p (html/but (html/attr? :*))]])
 
-(defn fetch-url [url]
+(defn fetch-url
+  "Fetch the content of a URL and create a enlive html tree."
+  [url]
   (html/html-resource (URL. url)))
 
-(defn contains-hyperlink? [node]
-  (and (map? node)
-       (html/select node [:a])))
+(defn fetch-article
+  "Fetch contents of wiki article and return enlive html tree representation."
+  [article]
+  (fetch-url (str base-url article)))
 
-(defn strip-head [node]
+(defn contains-hyperlink?
+  "True if node contains a hyperlink html tag."
+  [node]
+  (and (map? node)
+       (> (count (html/select node [:a])) 0)))
+
+(defn strip-head
+  "Strip an enlive html tree of its <head>."
+  [node]
   (html/at node
            [:head] (html/move [:head] nil)))
 
-(defn strip-script [node]
+(defn strip-script
+  "Strip an enlive html tree of all its <script> tags."
+  [node]
   (html/at node
            [:script] (html/move [:script] nil)))
 
-(defn string->enlive-tree [string]
-  (with-open [s (-> (java.io.StringReader. string) java.io.BufferedReader.)]
-    (html/html-resource s)))
+(defn strip-sup
+  "Strip an enlive html tree of all its <sup> tags."
+  [node]
+  (html/at node
+           [:sup] (html/move [:sup] nil)))
 
-(defn swallow-parenthesized [node]
-  (let [stripped-node (-> node strip-head strip-script)]
-    (-> (string/replace (apply str (html/emit* stripped-node))
-                        #"\([^<)]*(<[^>]+>)+[^)]*\)" "")
+(defn string->reader
+  "Create a java.io.Reader with string as data in stream."
+   [string]
+  (java.io.StringReader. string))
+
+(defn reader->buffered-reader
+  "Convert a java.io.Reader to java.io.BufferedReader."
+  [reader]
+  (java.io.BufferedReader. reader))
+
+(defn string->enlive-tree
+  "Convert a string to enlive's representation of html tree."
+  [string]
+  (with-open [s (-> (string->reader string) reader->buffered-reader)]
+    (first (html/html-resource s))))
+
+(defn update-normal [result char]
+  (conj result
+        {:swallowed (conj (:swallowed result) char)}))
+
+(defn update-incremental [result char]
+  (conj (update-normal result char)
+        {:count (inc (:count result))}))
+
+(defn update-decremental [result char]
+  (conj (update-normal result char)
+        {:count (dec (:count result))}))
+
+(defn undo-swallow [result char]
+  {:count 0
+   :string (conj (into (:string result)
+                       (:swallowed result))
+                 char)
+   :swallowed []})
+
+(defn update [result char]
+  (conj result {:count 0
+                :string (conj (:string result) char)}))
+
+(defn string-processor [result char]
+  (case char
+    \( (update-incremental result char)
+    \) (update-decremental result char)
+    (if (= (:count result) 0)
+      (if (and (> (count (:swallowed result)) 0)
+               (re-find #"[^<]*<[^>]+>.*"
+                        (apply str (:swallowed result))))
+        (update result char)
+        (undo-swallow result char))
+      (update-normal result char))))
+
+(defn swallow-parenthesized
+  "Delete all content inside of a parenthesis including the parenthesis, iff
+   parenthesis contains a minimum of one html tag."
+  [node]
+  (let [node-as-string (apply str (html/emit* node))]
+    ;; cannot unconditionally swallow the parens, need to make sure
+    ;; that it contains at least one tag, otherwise might render URLs
+    ;; useless.
+    (-> (apply str (:string (reduce string-processor
+                                    {:count 0 :string [] :swallowed []}
+                                    node-as-string)))
         string->enlive-tree)))
 
-(defn paragraphs [article]
-  (html/select (swallow-parenthesized (fetch-url (str base-url article)))
-               content-selector))
-
-(defn hyperlinks [node]
+(defn hyperlinks
+  "Return a list of nodes with html tag <a> inside of given node."
+  [node]
   (html/select node [:a]))
 
 (defn find-first-reference [article]
-  (let [ps (paragraphs article)]
-    (if-let [references (reduce concat
-                                []
-                                (map hyperlinks
-                                     (filter contains-hyperlink? ps)))]
-      (first (html/attr-values (first references)
-                               :href)))))
+  (let [article-tree (fetch-article article)
+        paragraphs (-> article-tree
+                       strip-head
+                       strip-script
+                       strip-sup
+                       (html/select content-selector))
+        unbraced-paragraphs (map swallow-parenthesized paragraphs)
+        links (map hyperlinks (filter contains-hyperlink? unbraced-paragraphs))
+        flat-links (reduce concat [] links)]
+    (first (html/attr-values (first flat-links)
+                             :href))))
 
-(defn find-first-referenced-article [article]
-  (last (string/split (find-first-reference article) #"/")))
+(defn url->article-name
+  "Extract wiki article name from a URL."
+  [url]
+  (if (or (nil? url)
+          (= (count url) 0))
+    nil
+    (last (string/split url #"/"))))
 
-(defn first-paragraph [url]
-  (first (paragraphs)))
-
-(defn to-philosophy [article]
-  (if (= (string/lower-case article)
-         (string/lower-case end-point))
-    (do (println article)
-        'done)
-    (do (println article)
-        (to-philosophy (find-first-referenced-article article)))))
-
+(defn to-philosophy
+  "Return a list of article names starting from article-name upto
+   \"Philosophy\" article."
+  ([article-name]
+     (to-philosophy article-name []))
+  ([article-name article-list]
+     (if (or (nil? article-name)
+              (= (string/lower-case article-name)
+                (string/lower-case end-point)))
+       (conj article-list article-name)
+       (-> (find-first-reference article-name)
+           url->article-name
+           (to-philosophy (conj article-list article-name))))))
