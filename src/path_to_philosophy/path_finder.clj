@@ -119,8 +119,9 @@
                        strip-script
                        strip-sup
                        (html/select content-selector))
-        unbraced-paragraphs (map swallow-parenthesized paragraphs)
-        links (map hyperlinks (filter contains-hyperlink? unbraced-paragraphs))
+        paragraphs-with-links (filter contains-hyperlink? paragraphs)
+        unbraced-paragraphs (map swallow-parenthesized paragraphs-with-links)
+        links (map hyperlinks unbraced-paragraphs)
         flat-links (reduce concat [] links)]
     (first (html/attr-values (first flat-links)
                              :href))))
