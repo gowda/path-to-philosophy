@@ -147,3 +147,19 @@
        (-> (find-first-reference article-name)
            url->article-name
            (to-philosophy (conj article-list article-name))))))
+
+(defn verbose-to-philosophy
+  "Return a list of article names starting from article-name upto
+   \"Philosophy\" article."
+  ([article-name]
+     (to-philosophy article-name []))
+  ([article-name article-list]
+     (if (or (nil? article-name)
+             (= (string/lower-case article-name)
+                (string/lower-case end-point)))
+       (do (println article-name)
+           (conj article-list article-name))
+       (do (println article-name)
+           (-> (find-first-reference article-name)
+               url->article-name
+               (to-philosophy (conj article-list article-name)))))))

@@ -17,6 +17,10 @@
              ["-h" "--help"
               "Show this help message"
               :flag true
+              :default false]
+             ["-v" "--verbose"
+              "Verbose output."
+              :flag true
               :default false])]
     (if (:help options)
       (do
@@ -33,7 +37,11 @@
                "at URL" (str (:base-url options) (:article options)))
       (println "Will stop for article" (:end-point options)
                "at URL" (str (:base-url options) (:end-point options)))
-      (println (apply str
-                      (interpose ", "
-                                 (path-finder/to-philosophy
-                                  (:article options))))))))
+      (if (true? (:verbose options))
+        (do (println "Going verbose!")
+            (path-finder/verbose-to-philosophy (:article options)))
+        (do (println "Going silent!")
+            (println (apply str
+                            (interpose ", "
+                                       (path-finder/to-philosophy
+                                        (:article options))))))))))
