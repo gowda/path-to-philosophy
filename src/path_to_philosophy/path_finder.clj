@@ -70,7 +70,11 @@
   [node]
   (html/select node [:a]))
 
-(defn find-first-reference [article]
+(defn wiki-link?
+  [node]
+  (re-find #"^/[^/].*" (first (html/attr-values node :href))))
+
+(defn ordered-links [article]
   (let [article-tree (fetch-article article)
         paragraphs (-> article-tree
                        strip-head
@@ -80,8 +84,13 @@
         paragraphs-with-links (filter contains-hyperlink? paragraphs)
         unbraced-paragraphs (map strip-parens paragraphs-with-links)
         links (map hyperlinks unbraced-paragraphs)
-        flat-links (reduce concat [] links)]
-    (first (html/attr-values (first flat-links)
+        flat-links (reduce concat [] links)
+        wiki-links (filter wiki-link? flat-links)]
+    wiki-links))
+
+(defn find-first-reference [article]
+  (let [links (ordered-links article)]
+    (first (html/attr-values (first links)
                              :href))))
 
 (defn url->article-name
@@ -110,7 +119,7 @@
   "Return a list of article names starting from article-name upto
    \"Philosophy\" article."
   ([article-name]
-     (to-philosophy article-name []))
+     (verbose-to-philosophy article-name []))
   ([article-name article-list]
      (if (or (nil? article-name)
              (= (string/lower-case article-name)
@@ -120,4 +129,4 @@
        (do (println article-name)
            (-> (find-first-reference article-name)
                url->article-name
-               (to-philosophy (conj article-list article-name)))))))
+               (verbose-to-philosophy (conj article-list article-name)))))))
