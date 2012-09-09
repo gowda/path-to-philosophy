@@ -1,5 +1,6 @@
 (ns path-to-philosophy.path-finder
   (:require [net.cgrand.enlive-html :as html]
+            [path-to-philosophy.utils :as utils]
             [clojure.string :as string])
   (:import java.net.URL))
 
@@ -59,53 +60,10 @@
   (with-open [s (-> (string->reader string) reader->buffered-reader)]
     (first (html/html-resource s))))
 
-(defn update-normal [result char]
-  (conj result
-        {:swallowed (conj (:swallowed result) char)}))
-
-(defn update-incremental [result char]
-  (conj (update-normal result char)
-        {:count (inc (:count result))}))
-
-(defn update-decremental [result char]
-  (conj (update-normal result char)
-        {:count (dec (:count result))}))
-
-(defn undo-swallow [result char]
-  {:count 0
-   :string (conj (into (:string result)
-                       (:swallowed result))
-                 char)
-   :swallowed []})
-
-(defn update [result char]
-  (conj result {:count 0
-                :string (conj (:string result) char)}))
-
-(defn string-processor [result char]
-  (case char
-    \( (update-incremental result char)
-    \) (update-decremental result char)
-    (if (= (:count result) 0)
-      (if (and (> (count (:swallowed result)) 0)
-               (re-find #"[^<]*<[^>]+>.*"
-                        (apply str (:swallowed result))))
-        (update result char)
-        (undo-swallow result char))
-      (update-normal result char))))
-
-(defn swallow-parenthesized
-  "Delete all content inside of a parenthesis including the parenthesis, iff
-   parenthesis contains a minimum of one html tag."
+(defn strip-parens
   [node]
   (let [node-as-string (apply str (html/emit* node))]
-    ;; cannot unconditionally swallow the parens, need to make sure
-    ;; that it contains at least one tag, otherwise might render URLs
-    ;; useless.
-    (-> (apply str (:string (reduce string-processor
-                                    {:count 0 :string [] :swallowed []}
-                                    node-as-string)))
-        string->enlive-tree)))
+    (string->enlive-tree (utils/swallow-parenthesized node-as-string))))
 
 (defn hyperlinks
   "Return a list of nodes with html tag <a> inside of given node."
@@ -120,7 +78,7 @@
                        strip-sup
                        (html/select content-selector))
         paragraphs-with-links (filter contains-hyperlink? paragraphs)
-        unbraced-paragraphs (map swallow-parenthesized paragraphs-with-links)
+        unbraced-paragraphs (map strip-parens paragraphs-with-links)
         links (map hyperlinks unbraced-paragraphs)
         flat-links (reduce concat [] links)]
     (first (html/attr-values (first flat-links)
